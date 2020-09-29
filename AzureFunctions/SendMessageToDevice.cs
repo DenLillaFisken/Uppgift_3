@@ -7,29 +7,33 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Microsoft.Azure.Devices;
+using SharedLibraries.Services;
+using SharedLibraries.Models;
 
 namespace AzureFunctions
 {
     public static class SendMessageToDevice
     {
+        private static readonly ServiceClient serviceClient = ServiceClient.CreateFromConnectionString(Environment.GetEnvironmentVariable("IotHubConnection"));
         [FunctionName("SendMessageToDevice")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
 
-            string name = req.Query["name"];
+            string message = req.Query["message"];
+            string deviceid = req.Query["deviceid"];
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+            var data = JsonConvert.DeserializeObject<SendMessages>(requestBody);
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
+            message = message ?? data?.Message;
+            deviceid = deviceid ?? data?.DeviceId;
 
-            return new OkObjectResult(responseMessage);
+            await DeviceService.SendMessageToDeviceAsync(serviceClient, deviceid, message);
+
+            return new OkResult();
         }
     }
 }
